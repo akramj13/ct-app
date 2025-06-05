@@ -74,27 +74,8 @@ chmod +x "$HOOKS_TEMPLATE_DIR/post-commit"
 git config --global init.templateDir "$HOME/.git-templates"
 echo "[✓] Global post-commit hook configured"
 
-# === 5. Add gclone wrapper to shell config ===
-GCLONE_FUNC=$(cat << 'EOF'
-function gclone() {
-  git clone "$1" "$2"
-  local target="${2:-$(basename "$1" .git)}"
-  local hook_path="$target/.git/hooks/post-commit"
-  cp ~/.git-templates/hooks/post-commit "$hook_path"
-  chmod +x "$hook_path"
-}
-EOF
-)
-
-# Add to shell configs if not already present
-for SHELL_RC in ~/.zshrc ~/.bashrc; do
-  if [ -f "$SHELL_RC" ] && ! grep -q "function gclone" "$SHELL_RC"; then
-    echo "$GCLONE_FUNC" >> "$SHELL_RC"
-    echo "[✓] gclone wrapper added to $SHELL_RC"
-  fi
-done
-
 # === Done ===
 echo -e "\n🎉 \033[1;32mSetup complete!\033[0m"
-echo "- Use \`gclone <repo-url>\` to auto-apply commit tracking to clones."
 echo "- All future \`git init\` repos will now track your contributions via post-commit hook."
+echo "- For existing repos, manually copy the hook:"
+echo "    cp ~/.git-templates/hooks/post-commit .git/hooks/ && chmod +x .git/hooks/post-commit"
