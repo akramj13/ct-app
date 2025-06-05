@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e  # Exit on error
 
 # === Configuration ===
 TRACKING_REPO_NAME="commit-tracker"
@@ -27,8 +28,16 @@ else
 fi
 
 cd "$TRACKING_REPO_PATH"
+
+# Ensure commits.log exists and is committed
 touch commits.log
-git add commits.log && git commit -m "Init log" && git push origin "$TRACKING_BRANCH"
+if [ -z "$(git status --porcelain commits.log)" ]; then
+  echo "[✓] commits.log already committed"
+else
+  git add commits.log
+  git commit -m "Init log"
+  git push origin "$TRACKING_BRANCH"
+fi
 
 # === 3. Create the tracking script ===
 mkdir -p "$SCRIPTS_PATH"
@@ -70,22 +79,22 @@ GCLONE_FUNC=$(cat << 'EOF'
 function gclone() {
   git clone "$1" "$2"
   local target="${2:-$(basename "$1" .git)}"
-  cp ~/.git-templates/hooks/post-commit "$target/.git/hooks/"
+  local hook_path="$target/.git/hooks/post-commit"
+  cp ~/.git-templates/hooks/post-commit "$hook_path"
+  chmod +x "$hook_path"
 }
 EOF
 )
 
-if ! grep -q "function gclone" ~/.zshrc 2>/dev/null; then
-  echo "$GCLONE_FUNC" >> ~/.zshrc
-fi
-
-if ! grep -q "function gclone" ~/.bashrc 2>/dev/null; then
-  echo "$GCLONE_FUNC" >> ~/.bashrc
-fi
-
-echo "[✓] gclone wrapper function added to shell config"
+# Add to shell configs if not already present
+for SHELL_RC in ~/.zshrc ~/.bashrc; do
+  if [ -f "$SHELL_RC" ] && ! grep -q "function gclone" "$SHELL_RC"; then
+    echo "$GCLONE_FUNC" >> "$SHELL_RC"
+    echo "[✓] gclone wrapper added to $SHELL_RC"
+  fi
+done
 
 # === Done ===
-echo -e "\n🎉 Setup complete!"
+echo -e "\n🎉 \033[1;32mSetup complete!\033[0m"
 echo "- Use \`gclone <repo-url>\` to auto-apply commit tracking to clones."
 echo "- All future \`git init\` repos will now track your contributions via post-commit hook."
