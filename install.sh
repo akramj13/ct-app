@@ -32,7 +32,6 @@ cd "$TRACKING_REPO_PATH"
 # Ensure commits.log exists and is committed
 touch commits.log
 
-# Pull from remote, using --no-rebase to avoid divergence error
 git pull --no-rebase origin "$TRACKING_BRANCH" || echo "⚠️ Warning: git pull failed (may be initial run)"
 
 if [ -n "$(git status --porcelain commits.log)" ]; then
@@ -54,6 +53,12 @@ set -e
 TRACKING_REPO_PATH="$HOME/.commit-tracker"
 TRACKING_BRANCH="main"
 WORKING_REPO_PATH=$(pwd)
+
+# 🛑 Prevent infinite recursion (when committing inside tracking repo)
+if [ "$WORKING_REPO_PATH" = "$TRACKING_REPO_PATH" ]; then
+  exit 0
+fi
+
 COMMIT_HASH=$(git rev-parse HEAD)
 COMMIT_MESSAGE=$(git log -1 --pretty=%B)
 COMMIT_AUTHOR=$(git log -1 --pretty="%an <%ae>")
@@ -62,16 +67,22 @@ COMMIT_DATE=$(git log -1 --pretty=%ci)
 echo "[$COMMIT_DATE] $COMMIT_AUTHOR: $COMMIT_MESSAGE ($COMMIT_HASH) - Repo: $WORKING_REPO_PATH" >> "$TRACKING_REPO_PATH/commits.log"
 
 cd "$TRACKING_REPO_PATH"
+
 git pull --no-rebase origin "$TRACKING_BRANCH" || echo "⚠️ Git pull failed"
+
 git add commits.log
-git commit -m "Logged commit: $COMMIT_HASH" || echo "⚠️ Nothing new to commit"
-git push origin "$TRACKING_BRANCH" --force || echo "⚠️ Git push failed"
+
+# 🚫 Disable hooks for this commit to avoid recursion
+git -c core.hooksPath=/dev/null commit -m "Logged commit: $COMMIT_HASH" || echo "⚠️ Nothing new to commit"
+
+# 🚫 Removed --force for safety
+git push origin "$TRACKING_BRANCH" || echo "⚠️ Git push failed"
 EOF
 
 chmod +x "$SCRIPT_FILE"
 echo "[✓] Commit tracker script created at $SCRIPT_FILE"
 
-# === 4. Set Up Global Git Hook Template (no global git config) ===
+# === 4. Set Up Global Git Hook Template ===
 mkdir -p "$HOOKS_TEMPLATE_DIR"
 
 cat << EOF > "$HOOKS_TEMPLATE_DIR/post-commit"
